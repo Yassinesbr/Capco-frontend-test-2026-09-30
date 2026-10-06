@@ -8,8 +8,16 @@ import {
   TextField,
   Typography,
 } from '@kyc/ui'
-import { useEffect, useRef, useState } from 'react'
+import { useMutation } from '@tanstack/react-query'
+import { useRef, useState } from 'react'
 
+import {
+  passwordGuidance,
+  registerApplicant,
+  RegistrationError,
+  validateRegistration,
+  type RegistrationErrors,
+} from './-registration-api'
 import { accountAccessHref } from './-return-target'
 import styles from './account-access.module.css'
 
@@ -18,43 +26,59 @@ export interface CreateAccountFormProps {
   returnTo?: string
 }
 
-const passwordGuidance =
-  'Use at least six characters, including one uppercase letter and one special character.'
-
 export function CreateAccountForm({
   onNavigate,
   returnTo,
 }: CreateAccountFormProps) {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [confirmation, setConfirmation] = useState('')
   const [error, setError] = useState<string>()
-  const [emailError, setEmailError] = useState<string>()
-  const [passwordError, setPasswordError] = useState<string>()
-  const [successMessage, setSuccessMessage] = useState<string>()
+  const [fieldErrors, setFieldErrors] = useState<RegistrationErrors>({})
+  const [success, setSuccess] = useState(false)
   const emailInput = useRef<HTMLInputElement>(null)
   const passwordInput = useRef<HTMLInputElement>(null)
+  const confirmationInput = useRef<HTMLInputElement>(null)
+  const submitting = useRef(false)
+  const registration = useMutation({
+    mutationFn: registerApplicant,
+    retry: false,
+    gcTime: 0,
+  })
 
-  useEffect(() => {
-    if (emailError) {
+  function showFieldErrors(errors: RegistrationErrors) {
+    setFieldErrors(errors)
+    if (errors.email) {
       emailInput.current?.focus()
-    } else if (passwordError) {
+    } else if (errors.password) {
       passwordInput.current?.focus()
+    } else if (errors.confirmation) {
+      confirmationInput.current?.focus()
     }
-  }, [emailError, passwordError])
+  }
 
   async function submit(): Promise<void> {
+    if (submitting.current || success) return
     setError(undefined)
-    setEmailError(undefined)
-    setPasswordError(undefined)
-    setSuccessMessage(undefined)
-
+    const errors = validateRegistration(email, password, confirmation)
+    showFieldErrors(errors)
+    if (Object.keys(errors).length) return
+    submitting.current = true
     try {
+      await registration.mutateAsync({ email: email.trim(), password })
       setPassword('')
-      setSuccessMessage(
-        'Account form is ready. Sign-in is available for this prototype.',
+      setConfirmation('')
+      setSuccess(true)
+    } catch (cause) {
+      setError(
+        cause instanceof Error
+          ? cause.message
+          : 'Account creation could not be confirmed. Please try again.',
       )
-    } catch {
-      setError('Account form could not be completed.')
+      if (cause instanceof RegistrationError) showFieldErrors(cause.fields)
+    } finally {
+      registration.reset()
+      submitting.current = false
     }
   }
 
@@ -69,6 +93,7 @@ export function CreateAccountForm({
               event.preventDefault()
               void submit()
             }}
+            aria-busy={registration.isPending}
             spacing={3}
           >
             <Stack spacing={1}>
@@ -79,64 +104,108 @@ export function CreateAccountForm({
                 Create credentials to begin your KYC application.
               </Typography>
             </Stack>
-            {(error ?? emailError ?? passwordError) ? (
+            {(error ??
+            fieldErrors.email ??
+            fieldErrors.password ??
+            fieldErrors.confirmation) ? (
               <Alert aria-live="assertive" role="alert" severity="error">
-                {error ?? emailError ?? passwordError}
+                {error ??
+                  fieldErrors.email ??
+                  fieldErrors.password ??
+                  fieldErrors.confirmation}
               </Alert>
             ) : null}
-            {successMessage ? (
+            {success ? (
               <Alert aria-live="polite" role="status" severity="success">
-                {successMessage}
+                Your account has been created. Sign in to begin your
+                application.
               </Alert>
             ) : null}
             <TextField
               autoComplete="email"
-              error={Boolean(emailError)}
+              error={Boolean(fieldErrors.email)}
               fullWidth
-              helperText={emailError}
+              helperText={fieldErrors.email}
               id="applicant-email"
               inputRef={emailInput}
               label="Email address"
               name="email"
               onChange={(event) => {
                 setEmail(event.target.value)
-                setEmailError(undefined)
+                setFieldErrors((current) => ({ ...current, email: undefined }))
               }}
+              readOnly={registration.isPending || success}
               required
               type="email"
               value={email}
             />
             <TextField
               autoComplete="new-password"
-              error={Boolean(passwordError)}
+              error={Boolean(fieldErrors.password)}
               fullWidth
-              helperText={passwordError ?? passwordGuidance}
+              helperText={fieldErrors.password ?? passwordGuidance}
               id="applicant-password"
               inputRef={passwordInput}
               label="Password"
               name="password"
               onChange={(event) => {
                 setPassword(event.target.value)
-                setPasswordError(undefined)
+                setFieldErrors((current) => ({
+                  ...current,
+                  password: undefined,
+                  confirmation: undefined,
+                }))
               }}
+              readOnly={registration.isPending || success}
               required
               type="password"
               value={password}
             />
+            <TextField
+              autoComplete="new-password"
+              error={Boolean(fieldErrors.confirmation)}
+              fullWidth
+              helperText={fieldErrors.confirmation}
+              id="applicant-password-confirmation"
+              inputRef={confirmationInput}
+              label="Confirm password"
+              name="passwordConfirmation"
+              onChange={(event) => {
+                setConfirmation(event.target.value)
+                setFieldErrors((current) => ({
+                  ...current,
+                  confirmation: undefined,
+                }))
+              }}
+              readOnly={registration.isPending || success}
+              required
+              type="password"
+              value={confirmation}
+            />
+            {registration.isPending ? (
+              <Alert role="status">Creating your account...</Alert>
+            ) : null}
             <Button
+              disabled={registration.isPending || success}
               className={styles.submit}
               fullWidth
               size="large"
               type="submit"
             >
-              Create account
+              {registration.isPending
+                ? 'Creating account...'
+                : 'Create account'}
             </Button>
             <Typography
               className={styles.footer}
               align="center"
               variant="caption"
             >
-              <span>Already have an account? </span>
+              <span>
+                {success
+                  ? 'Your account is ready. '
+                  : 'Already have an account? '}
+              </span>
               <Link
                 href={accountAccessHref('/sign-in', returnTo)}
                 onClick={(event) => {
