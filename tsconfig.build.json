@@ -1,0 +1,12 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "declaration": true,
+    "declarationMap": true,
+    "emitDeclarationOnly": false,
+    "outDir": "DS/dist",
+    "rootDir": "."
+  },
+  "exclude": ["DS/dist", "DS/**/*.stories.tsx", "DS/**/*.test.tsx", "DS/test", ".storybook", "DS/vitest.config.ts"]
+}

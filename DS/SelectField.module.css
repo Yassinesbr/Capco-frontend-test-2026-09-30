@@ -1,0 +1,37 @@
+.select {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: max-content;
+}
+.trigger {
+  align-items: center;
+  background: white;
+  border: 1px solid #8795aa;
+  border-radius: 4px;
+  display: flex;
+  font: inherit;
+  justify-content: space-between;
+  min-width: 220px;
+  padding: 8px 12px;
+}
+.popover {
+  background: white;
+  border: 1px solid #dce3ee;
+  border-radius: 6px;
+  box-shadow: 0 4px 12px #0002;
+  padding: 4px;
+}
+.list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.option {
+  border-radius: 4px;
+  cursor: pointer;
+  padding: 8px 12px;
+}
+.option[data-focused] {
+  background: #e8eef7;
+}

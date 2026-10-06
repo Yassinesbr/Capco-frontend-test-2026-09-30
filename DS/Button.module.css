@@ -1,0 +1,38 @@
+.button {
+  align-items: center;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  cursor: pointer;
+  display: inline-flex;
+  font: inherit;
+  font-weight: 600;
+  justify-content: center;
+  padding: 8px 14px;
+}
+
+.button[data-disabled] {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+.primary {
+  background: #3157c8;
+  color: white;
+}
+.secondary {
+  background: transparent;
+  border-color: #3157c8;
+  color: #3157c8;
+}
+.quiet {
+  background: transparent;
+  color: #3157c8;
+}
+.small {
+  padding: 6px 10px;
+}
+.large {
+  padding: 10px 18px;
+}
+.fullWidth {
+  width: 100%;
+}

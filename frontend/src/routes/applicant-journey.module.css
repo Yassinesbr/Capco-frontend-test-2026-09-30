@@ -1,0 +1,64 @@
+.page {
+  background: #f5f7fa;
+  min-height: 100dvh;
+  padding: 0;
+}
+.card {
+  margin: auto;
+  max-width: 640px;
+  min-height: 100dvh;
+  border-radius: 0;
+  box-shadow: none;
+}
+.cardContent {
+  padding: 24px;
+}
+.progressList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.progressItem {
+  align-items: center;
+  background: transparent;
+  border: 1px solid #dce3ee;
+  border-radius: 8px;
+  display: flex;
+  gap: 8px;
+  padding: 16px;
+}
+.current {
+  background: #eaf0ff;
+  border-color: #3157c8;
+}
+.complete {
+  border-color: #2e7d32;
+}
+.stepIndex,
+.stepStatus {
+  font-weight: 700;
+}
+.stepName {
+  flex: 1;
+}
+.action {
+  min-height: 48px;
+}
+.action:focus-visible {
+  outline: 3px solid #193a91;
+  outline-offset: 3px;
+}
+
+@media (min-width: 600px) {
+  .page {
+    padding: 48px 24px;
+  }
+  .card {
+    border-radius: 12px;
+    min-height: auto;
+    box-shadow: 0 8px 24px #172b4d1a;
+  }
+  .cardContent {
+    padding: 40px;
+  }
+}

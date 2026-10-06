@@ -1,0 +1,29 @@
+.api-docs {
+  min-height: 100dvh;
+  background: #f5f7fa;
+  color: #172b4d;
+}
+
+.api-docs__header {
+  padding: 24px clamp(20px, 5vw, 64px);
+  background: #fff;
+  border-bottom: 1px solid #e2e5ea;
+}
+
+.api-docs__header h1 {
+  margin: 24px 0 8px;
+}
+
+.api-docs__swagger {
+  max-width: 1440px;
+  margin: 24px auto;
+  padding: 0 20px;
+}
+
+.api-docs .swagger-ui {
+  color: #172b4d;
+}
+
+.api-docs .swagger-ui .info {
+  margin: 24px 0;
+}

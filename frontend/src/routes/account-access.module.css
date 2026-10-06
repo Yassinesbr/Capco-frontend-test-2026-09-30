@@ -1,0 +1,38 @@
+.page {
+  background: #f5f7fa;
+  min-height: 100dvh;
+  padding: 0;
+}
+.card {
+  border-radius: 0;
+  margin: auto;
+  max-width: 480px;
+  min-height: 100dvh;
+  box-shadow: none;
+}
+.cardContent {
+  padding: 24px;
+}
+.form.form {
+  gap: 24px;
+}
+.submit {
+  min-height: 48px;
+}
+.footer {
+  text-align: center;
+}
+
+@media (min-width: 600px) {
+  .page {
+    padding: 48px 24px;
+  }
+  .card {
+    border-radius: 12px;
+    min-height: auto;
+    box-shadow: 0 8px 24px #172b4d1a;
+  }
+  .cardContent {
+    padding: 40px;
+  }
+}

@@ -1,0 +1,44 @@
+{
+  "name": "@kyc/frontend",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "react-router dev --port 3000",
+    "build": "react-router build",
+    "start": "vite preview --host 0.0.0.0 --port 3000 --outDir build/client",
+    "test": "vitest run",
+    "test:e2e": "node ./e2e/run.mjs",
+    "typecheck": "react-router typegen && tsc --noEmit"
+  },
+  "dependencies": {
+    "@kyc/ui": "*",
+    "@react-router/node": "7.18.4",
+    "@react-router/serve": "7.18.4",
+    "@tanstack/react-query": "5.103.2",
+    "isbot": "5.1.31",
+    "react": "19.3.0",
+    "react-aria-components": "1.21.1",
+    "react-dom": "19.3.0",
+    "react-router": "7.18.4",
+    "swagger-ui-react": "5.33.0",
+    "zod": "4.1.12"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.63.0",
+    "@react-router/dev": "7.18.4",
+    "@testing-library/jest-dom": "6.9.1",
+    "@testing-library/react": "16.3.3",
+    "@testing-library/user-event": "14.6.1",
+    "@types/jest-axe": "3.5.9",
+    "@types/node": "26.6.2",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "jest-axe": "11.0.0",
+    "jsdom": "27.4.0",
+    "msw": "2.15.0",
+    "typescript": "npm:@typescript/typescript6@6.0.2",
+    "vite": "8.3.0",
+    "vitest": "4.1.11"
+  }
+}

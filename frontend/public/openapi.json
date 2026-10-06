@@ -1,0 +1,2045 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "KYC API",
+    "version": "1.0.0",
+    "description": "JSON:API endpoints for Applicant accounts and sessions, KYC applications and document evidence, reviewer workload, and access checks. Authenticated endpoints use the first-party session cookie. Error responses use a JSON:API errors array with safe, client-actionable details."
+  },
+  "servers": [
+    {
+      "url": "/",
+      "description": "Current frontend origin; /api/v1 is proxied to the Java API in development."
+    }
+  ],
+  "tags": [
+    {
+      "name": "Account access",
+      "description": "Applicant registration, sign-in, and session revocation."
+    },
+    {
+      "name": "Applicant applications",
+      "description": "Applicant-owned KYC drafts, form data, document evidence, and submission."
+    },
+    {
+      "name": "Reviewer applications",
+      "description": "Minimized reviewer workload summary and paginated application list."
+    },
+    {
+      "name": "Access control",
+      "description": "Server-side checks for protected work areas."
+    }
+  ],
+  "paths": {
+    "/api/v1/applicant-accounts": {
+      "post": {
+        "operationId": "createApplicantAccount",
+        "summary": "Register an Applicant account",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/vnd.api+json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApplicantAccountCreateDocument"
+              }
+            }
+          },
+          "description": "JSON:API credentials document. The email must be valid; the password must be at least six characters and include an uppercase letter and a special character."
+        },
+        "responses": {
+          "201": {
+            "description": "Account created. No session is established. Location identifies the new account resource.",
+            "headers": {
+              "Location": {
+                "schema": {
+                  "type": "string",
+                  "format": "uri-reference"
+                },
+                "description": "URI of the newly created account resource."
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/CredentialInputInvalid"
+          },
+          "406": {
+            "$ref": "#/components/responses/NotAcceptable"
+          },
+          "409": {
+            "$ref": "#/components/responses/AccountConflict"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedRequestMediaType"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        },
+        "tags": ["Account access"],
+        "description": "Creates an account without signing the Applicant in. The request must use the applicant-accounts resource type. Email and password validation errors can return multiple entries with source.pointer values. The password must contain at least six characters, one uppercase letter, and one special character."
+      }
+    },
+    "/api/v1/applicant-sessions": {
+      "post": {
+        "operationId": "createApplicantSession",
+        "summary": "Authenticate an Applicant and establish a session",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/vnd.api+json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApplicantSessionCreateDocument"
+              }
+            }
+          },
+          "description": "JSON:API credentials document for an Applicant account."
+        },
+        "responses": {
+          "201": {
+            "description": "Session established. Sets an HttpOnly session cookie and a JavaScript-readable XSRF-TOKEN cookie; returns the CSRF token in X-CSRF-TOKEN.",
+            "headers": {
+              "Location": {
+                "description": "Canonical URL using the public derived session UUID, never the credential.",
+                "schema": {
+                  "type": "string",
+                  "format": "uri-reference"
+                }
+              },
+              "Set-Cookie": {
+                "description": "Sets the opaque HttpOnly session cookie and the JavaScript-readable XSRF-TOKEN cookie.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-CSRF-TOKEN": {
+                "description": "CSRF token also stored in the XSRF-TOKEN cookie. Send it as X-XSRF-TOKEN on authenticated state-changing requests.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/vnd.api+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApplicantSessionDocument"
+                },
+                "description": "JSON:API session resource with public session UUID and journey URL. The session secret is only sent in the HttpOnly cookie."
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/CredentialInputInvalid"
+          },
+          "401": {
+            "$ref": "#/components/responses/InvalidCredentials"
+          },
+          "406": {
+            "$ref": "#/components/responses/NotAcceptable"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedRequestMediaType"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        },
+        "tags": ["Account access"],
+        "description": "Authenticates credentials and rotates any existing session. Invalid credentials share one 401 response so the API does not reveal whether an email address is registered. Success returns an opaque session resource, sets the session and XSRF-TOKEN cookies, and returns the CSRF token in X-CSRF-TOKEN."
+      }
+    },
+    "/api/v1/applicant-sessions/current": {
+      "delete": {
+        "operationId": "deleteCurrentApplicantSession",
+        "summary": "Revoke the current Applicant session",
+        "responses": {
+          "204": {
+            "description": "Session revoked and session cookie cleared. No response body.",
+            "headers": {
+              "Set-Cookie": {
+                "description": "Expires the current session cookie.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/AuthenticationRequired"
+          },
+          "403": {
+            "$ref": "#/components/responses/AccessDenied"
+          }
+        },
+        "tags": ["Account access"],
+        "description": "Revokes the session identified by the session cookie and clears that cookie. When a session cookie is present, send the matching CSRF token in X-XSRF-TOKEN.",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ]
+      }
+    },
+    "/api/v1/applicant-applications/current": {
+      "get": {
+        "operationId": "getCurrentApplicantApplication",
+        "responses": {
+          "200": {
+            "description": "Current draft",
+            "content": {
+              "application/vnd.api+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApplicantApplicationDocument"
+                }
+              }
+            }
+          },
+          "204": {
+            "description": "The Applicant has no current draft. No response body."
+          },
+          "401": {
+            "$ref": "#/components/responses/AuthenticationRequired"
+          },
+          "406": {
+            "$ref": "#/components/responses/NotAcceptable"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "tags": ["Applicant applications"],
+        "summary": "Get the current Applicant draft",
+        "description": "Returns the authenticated Applicant?s current draft. Returns 204 with no response body when the Applicant has not started an application; this operation does not create a draft.",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ]
+      }
+    },
+    "/api/v1/applicant-applications": {
+      "post": {
+        "operationId": "createApplicantApplication",
+        "responses": {
+          "200": {
+            "description": "The Applicant?s existing active draft, returned without creating a duplicate.",
+            "content": {
+              "application/vnd.api+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApplicantApplicationDocument"
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "A new draft was created.",
+            "headers": {
+              "Location": {
+                "schema": {
+                  "type": "string",
+                  "format": "uri-reference"
+                },
+                "description": "URI of the newly created application resource."
+              }
+            },
+            "content": {
+              "application/vnd.api+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApplicantApplicationDocument"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/AuthenticationRequired"
+          },
+          "403": {
+            "$ref": "#/components/responses/AccessDenied"
+          },
+          "406": {
+            "$ref": "#/components/responses/NotAcceptable"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "tags": ["Applicant applications"],
+        "summary": "Create or retrieve the current Applicant draft",
+        "description": "Starts a draft when none exists. Returns the existing active draft when one already exists, so repeated calls do not create duplicate current drafts. Send the session cookie and, when present, its CSRF token.",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ]
+      }
+    },
+    "/api/v1/internal/{area}": {
+      "get": {
+        "operationId": "getInternalAreaAccess",
+        "summary": "Check access to an internal work area",
+        "parameters": [
+          {
+            "name": "area",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": ["reviewer", "admin", "administrator"]
+            },
+            "description": "Protected work area. reviewer selects reviewer access; admin and administrator select administrator access."
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Access permitted"
+          },
+          "403": {
+            "$ref": "#/components/responses/AccessDenied"
+          }
+        },
+        "tags": ["Access control"],
+        "description": "Checks the role stored in the authenticated server-side session. Supported area values are reviewer, admin, and administrator. Returns 204 when access is allowed and a JSON:API 403 error otherwise.",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ]
+      }
+    },
+    "/api/v1/applicant-applications/{applicationId}/form": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/ApplicationId"
+        }
+      ],
+      "get": {
+        "operationId": "getApplicantApplicationForm",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The authenticated Applicant's form state.",
+            "content": {
+              "application/vnd.api+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FormDocument"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/AuthenticationRequired"
+          },
+          "404": {
+            "$ref": "#/components/responses/ApplicationNotFound"
+          },
+          "406": {
+            "$ref": "#/components/responses/NotAcceptable"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "tags": ["Applicant applications"],
+        "summary": "Get an Applicant application form",
+        "description": "Returns the authenticated Applicant?s saved draft form, including current step, step progress, saved answers, document-evidence presence, and form version. The application must belong to the signed-in Applicant."
+      },
+      "patch": {
+        "operationId": "updateApplicantApplicationForm",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/vnd.api+json": {
+              "schema": {
+                "$ref": "#/components/schemas/FormUpdateDocument"
+              }
+            }
+          },
+          "description": "JSON:API document containing the application form resource, selected step, answers for that step, and optional expected form version."
+        },
+        "responses": {
+          "200": {
+            "description": "The persisted form state after the update.",
+            "content": {
+              "application/vnd.api+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FormDocument"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/MalformedJsonApiDocument"
+          },
+          "401": {
+            "$ref": "#/components/responses/AuthenticationRequired"
+          },
+          "403": {
+            "$ref": "#/components/responses/AccessDenied"
+          },
+          "404": {
+            "$ref": "#/components/responses/ApplicationNotFound"
+          },
+          "406": {
+            "$ref": "#/components/responses/NotAcceptable"
+          },
+          "409": {
+            "$ref": "#/components/responses/FormVersionConflict"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedRequestMediaType"
+          },
+          "422": {
+            "$ref": "#/components/responses/FormUnprocessable"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "tags": ["Applicant applications"],
+        "parameters": [
+          {
+            "name": "X-XSRF-TOKEN",
+            "in": "header",
+            "required": false,
+            "description": "CSRF token from the XSRF-TOKEN cookie. Required when sending a session cookie with a state-changing request.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "summary": "Save Applicant application form answers",
+        "description": "Saves answers for the selected form step and returns the persisted form state. Include the current form version to detect concurrent changes. Only fields for the selected step are accepted; stale versions return 409, invalid form data returns 422, and authenticated writes require the CSRF token."
+      }
+    },
+    "/api/v1/applicant-applications/{applicationId}/review": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/ApplicationId"
+        }
+      ],
+      "get": {
+        "operationId": "getApplicantApplicationReview",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Missing required fields or a ready-to-submit review summary.",
+            "content": {
+              "application/vnd.api+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReviewDocument"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/AuthenticationRequired"
+          },
+          "404": {
+            "$ref": "#/components/responses/ApplicationNotFound"
+          },
+          "406": {
+            "$ref": "#/components/responses/NotAcceptable"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "tags": ["Applicant applications"],
+        "summary": "Get the Applicant application readiness review",
+        "description": "Returns whether the draft is ready for submission and lists missing required fields by step and field name. This response does not submit or change the application."
+      }
+    },
+    "/api/v1/applicant-applications/{applicationId}/document-evidence": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/ApplicationId"
+        }
+      ],
+      "post": {
+        "operationId": "uploadApplicantApplicationDocumentEvidence",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": ["file"],
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "format": "binary",
+                    "description": "Identity document image. Use JPG (image/jpeg) or PNG (image/png); maximum size is 10 MiB."
+                  }
+                }
+              }
+            }
+          },
+          "description": "Multipart upload with one file part. Accepts image/jpeg or image/png files up to 10 MiB."
+        },
+        "responses": {
+          "201": {
+            "description": "Document evidence stored for the Applicant's draft.",
+            "content": {
+              "application/vnd.api+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentEvidenceDocument"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/AuthenticationRequired"
+          },
+          "403": {
+            "$ref": "#/components/responses/AccessDenied"
+          },
+          "404": {
+            "$ref": "#/components/responses/ApplicationNotFound"
+          },
+          "406": {
+            "$ref": "#/components/responses/NotAcceptable"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedEvidenceRequestMediaType"
+          },
+          "422": {
+            "$ref": "#/components/responses/EvidenceInvalid"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "tags": ["Applicant applications"],
+        "parameters": [
+          {
+            "name": "X-XSRF-TOKEN",
+            "in": "header",
+            "required": false,
+            "description": "CSRF token from the XSRF-TOKEN cookie. Required when sending a session cookie with a state-changing request.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "summary": "Upload Applicant identity document evidence",
+        "description": "Stores one JPG or PNG image for the authenticated Applicant?s draft. Send multipart/form-data with a file part no larger than 10 MiB. An empty, oversized, or unsupported image returns a 422 JSON:API error; authenticated uploads require the CSRF token."
+      }
+    },
+    "/api/v1/applicant-applications/{applicationId}": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/ApplicationId"
+        }
+      ],
+      "get": {
+        "operationId": "getApplicantApplicationStatus",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The authenticated Applicant's minimized application lifecycle state.",
+            "content": {
+              "application/vnd.api+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApplicationDocument"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/AuthenticationRequired"
+          },
+          "404": {
+            "$ref": "#/components/responses/ApplicationNotFound"
+          },
+          "406": {
+            "$ref": "#/components/responses/NotAcceptable"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "tags": ["Applicant applications"],
+        "summary": "Get Applicant application status",
+        "description": "Returns the authenticated Applicant?s minimized application lifecycle state. The resource omits personal form answers and document contents."
+      },
+      "patch": {
+        "operationId": "submitApplicantApplication",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/vnd.api+json": {
+              "schema": {
+                "$ref": "#/components/schemas/SubmissionRequestDocument"
+              }
+            }
+          },
+          "description": "JSON:API document confirming submission and carrying the expected form version returned by the latest form read."
+        },
+        "responses": {
+          "200": {
+            "description": "Submission committed or the same already-committed submission returned after a replay.",
+            "content": {
+              "application/vnd.api+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApplicationDocument"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/MalformedJsonApiDocument"
+          },
+          "401": {
+            "$ref": "#/components/responses/AuthenticationRequired"
+          },
+          "403": {
+            "$ref": "#/components/responses/AccessDenied"
+          },
+          "404": {
+            "$ref": "#/components/responses/ApplicationNotFound"
+          },
+          "406": {
+            "$ref": "#/components/responses/NotAcceptable"
+          },
+          "409": {
+            "$ref": "#/components/responses/FormVersionConflict"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedRequestMediaType"
+          },
+          "422": {
+            "$ref": "#/components/responses/SubmissionUnprocessable"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "tags": ["Applicant applications"],
+        "parameters": [
+          {
+            "name": "X-XSRF-TOKEN",
+            "in": "header",
+            "required": false,
+            "description": "CSRF token from the XSRF-TOKEN cookie. Required when sending a session cookie with a state-changing request.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "summary": "Submit the Applicant application",
+        "description": "Submits a complete draft after explicit confirmation and an expected form version. A successful replay returns the already-committed submission. Incomplete applications return 422 with missing field names in the error detail; stale versions or invalid lifecycle state return 409."
+      }
+    },
+    "/api/v1/reviewer-applications": {
+      "get": {
+        "operationId": "listReviewerApplications",
+        "summary": "Read reviewer workload summary and a page of applications",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "search",
+            "in": "query",
+            "description": "Case-insensitive applicant-name or application-ID query.",
+            "schema": {
+              "type": "string",
+              "maxLength": 120
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "description": "Lifecycle status filter; omit or use all for all statuses.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "all",
+                "draft",
+                "submitted",
+                "in-review",
+                "approved",
+                "rejected"
+              ],
+              "default": "all"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "description": "Zero-based page index.",
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0
+            }
+          },
+          {
+            "name": "page-size",
+            "in": "query",
+            "description": "Requested page size, from 1 to 50. Defaults to 10.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 50,
+              "default": 10
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Workload summary and matching page, newest first.",
+            "content": {
+              "application/vnd.api+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReviewerApplicationsDocument"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ReviewerQueryInvalid"
+          },
+          "401": {
+            "$ref": "#/components/responses/AuthenticationRequired"
+          },
+          "403": {
+            "$ref": "#/components/responses/AccessDenied"
+          },
+          "406": {
+            "$ref": "#/components/responses/NotAcceptable"
+          }
+        },
+        "tags": ["Reviewer applications"],
+        "description": "Returns aggregate workload counts and a newest-first page of minimized application records. Search matches applicant names or application IDs without case sensitivity. The response includes the effective page, page size, total item count, and total pages."
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "sessionCookie": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "__Host-KYCSESSION",
+        "description": "Opaque, secure, HttpOnly cookie set after successful sign-in. The browser sends it automatically to the API origin."
+      }
+    },
+    "schemas": {
+      "ApplicantAccountCreateDocument": {
+        "type": "object",
+        "required": ["data"],
+        "properties": {
+          "data": {
+            "type": "object",
+            "required": ["type", "attributes"],
+            "properties": {
+              "type": {
+                "const": "applicant-accounts",
+                "description": "Must be applicant-accounts."
+              },
+              "attributes": {
+                "type": "object",
+                "required": ["email", "password"],
+                "properties": {
+                  "email": {
+                    "type": "string",
+                    "format": "email",
+                    "description": "Applicant email address."
+                  },
+                  "password": {
+                    "type": "string",
+                    "minLength": 6,
+                    "writeOnly": true,
+                    "description": "Password is write-only. Use at least 6 characters including an uppercase letter and a special character."
+                  }
+                }
+              }
+            },
+            "description": "Applicant account resource to create."
+          }
+        },
+        "description": "JSON:API request document for Applicant registration."
+      },
+      "ApplicantSessionCreateDocument": {
+        "type": "object",
+        "required": ["data"],
+        "properties": {
+          "data": {
+            "type": "object",
+            "required": ["type", "attributes"],
+            "properties": {
+              "type": {
+                "const": "applicant-sessions",
+                "description": "Must be applicant-sessions."
+              },
+              "attributes": {
+                "type": "object",
+                "required": ["email", "password"],
+                "properties": {
+                  "email": {
+                    "type": "string",
+                    "format": "email",
+                    "description": "Applicant email address."
+                  },
+                  "password": {
+                    "type": "string",
+                    "writeOnly": true,
+                    "description": "Password is write-only. Supply the password used when registering the account.",
+                    "minLength": 6
+                  }
+                }
+              }
+            },
+            "description": "Applicant session resource to create."
+          }
+        },
+        "description": "JSON:API request document for Applicant sign-in."
+      },
+      "ApplicantSessionDocument": {
+        "type": "object",
+        "required": ["data"],
+        "properties": {
+          "data": {
+            "type": "object",
+            "required": ["type", "id", "attributes"],
+            "properties": {
+              "type": {
+                "const": "applicant-sessions"
+              },
+              "id": {
+                "type": "string",
+                "format": "uuid",
+                "description": "Non-reversible public identifier derived from the session secret; not a credential."
+              },
+              "attributes": {
+                "type": "object",
+                "required": ["href"],
+                "properties": {
+                  "href": {
+                    "type": "string",
+                    "format": "uri-reference"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "description": "JSON:API response containing the public session identifier and Applicant journey URL. Authentication secret is stored in the session cookie."
+      },
+      "ApplicantApplicationDocument": {
+        "type": "object",
+        "required": ["data"],
+        "properties": {
+          "data": {
+            "type": "object",
+            "required": ["type", "id", "attributes"],
+            "properties": {
+              "type": {
+                "const": "applicant-applications"
+              },
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "attributes": {
+                "type": "object",
+                "required": ["status", "currentStep", "progress", "href"],
+                "properties": {
+                  "status": {
+                    "const": "draft"
+                  },
+                  "currentStep": {
+                    "enum": ["personal-details", "identity-and-address"],
+                    "description": "Step currently open in the Applicant journey."
+                  },
+                  "href": {
+                    "type": "string",
+                    "format": "uri-reference"
+                  },
+                  "progress": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "required": ["step", "state"],
+                      "properties": {
+                        "step": {
+                          "enum": ["personal-details", "identity-and-address"]
+                        },
+                        "state": {
+                          "enum": ["not-started", "current", "complete"]
+                        }
+                      }
+                    },
+                    "description": "Completion state for each application step."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "description": "JSON:API response describing the Applicant?s current draft and step progress."
+      },
+      "ErrorDocument": {
+        "type": "object",
+        "required": ["errors"],
+        "properties": {
+          "errors": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "type": "string",
+                  "description": "HTTP status code represented as a string, such as \"422\"."
+                },
+                "code": {
+                  "type": "string",
+                  "description": "Stable machine-readable error code for client handling."
+                },
+                "title": {
+                  "type": "string",
+                  "description": "Short, human-readable summary of the error."
+                },
+                "detail": {
+                  "type": "string",
+                  "description": "Safe, actionable explanation. It does not contain credentials, internal exception details, or stored document contents."
+                },
+                "source": {
+                  "type": "object",
+                  "properties": {
+                    "pointer": {
+                      "type": "string",
+                      "description": "JSON Pointer to the invalid member in the request document, such as /data/attributes/email."
+                    }
+                  },
+                  "description": "Location of the invalid request member. Omitted when the error is not tied to one field.",
+                  "required": ["pointer"]
+                }
+              },
+              "required": ["status", "code", "title", "detail"],
+              "description": "Safe JSON:API error details. source is present for field validation errors and points to the invalid request member."
+            },
+            "description": "One or more error objects. Each object describes one failure; validation can return multiple errors in the same response."
+          }
+        },
+        "description": "JSON:API error document. The errors array contains one or more safe error objects; credential validation can return several field errors."
+      },
+      "CredentialsDocument": {
+        "type": "object",
+        "required": ["data"],
+        "properties": {
+          "data": {
+            "type": "object",
+            "required": ["type", "attributes"],
+            "properties": {
+              "type": {
+                "enum": ["applicant-accounts", "applicant-sessions"]
+              },
+              "attributes": {
+                "type": "object",
+                "required": ["email", "password"],
+                "properties": {
+                  "email": {
+                    "type": "string",
+                    "format": "email",
+                    "description": "Applicant email address."
+                  },
+                  "password": {
+                    "type": "string",
+                    "minLength": 6,
+                    "writeOnly": true,
+                    "description": "Password is write-only and is never returned by the API."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "description": "JSON:API credentials request shape shared by account and session operations."
+      },
+      "JsonApiResourceIdentifier": {
+        "type": "object",
+        "required": ["type", "id"],
+        "properties": {
+          "type": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          }
+        }
+      },
+      "FormDocument": {
+        "type": "object",
+        "required": ["data"],
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/FormResource"
+          }
+        },
+        "description": "JSON:API response containing the saved form state for one application."
+      },
+      "FormResource": {
+        "type": "object",
+        "required": ["type", "id", "attributes"],
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "applicant-application-forms"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "attributes": {
+            "$ref": "#/components/schemas/FormAttributes"
+          }
+        }
+      },
+      "FormUpdateDocument": {
+        "type": "object",
+        "required": ["data"],
+        "properties": {
+          "data": {
+            "type": "object",
+            "required": ["type", "id", "attributes"],
+            "properties": {
+              "type": {
+                "type": "string",
+                "const": "applicant-application-forms"
+              },
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "attributes": {
+                "$ref": "#/components/schemas/FormUpdateAttributes"
+              }
+            }
+          }
+        },
+        "description": "JSON:API request document for saving answers on one form step."
+      },
+      "FormAttributes": {
+        "type": "object",
+        "required": [
+          "status",
+          "currentStep",
+          "steps",
+          "answers",
+          "documentEvidence"
+        ],
+        "properties": {
+          "status": {
+            "type": "string",
+            "const": "draft"
+          },
+          "currentStep": {
+            "$ref": "#/components/schemas/Step"
+          },
+          "steps": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StepProgress"
+            }
+          },
+          "answers": {
+            "$ref": "#/components/schemas/Answers",
+            "description": "Saved values keyed by form field name. Unanswered fields may be omitted or null."
+          },
+          "documentEvidence": {
+            "$ref": "#/components/schemas/DocumentEvidenceSummary",
+            "description": "Indicates whether an accepted identity document image is stored."
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Version used to detect concurrent edits. Send this value when saving or submitting."
+          }
+        },
+        "description": "Persisted draft state, step progress, answers, document-evidence presence, and optimistic concurrency version."
+      },
+      "FormUpdateAttributes": {
+        "type": "object",
+        "required": ["step", "answers"],
+        "properties": {
+          "step": {
+            "$ref": "#/components/schemas/Step"
+          },
+          "answers": {
+            "$ref": "#/components/schemas/Answers"
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Expected current form version. A stale value returns 409 form-version-conflict."
+          }
+        },
+        "description": "Answers to save for the selected step. Include version from the most recent form response when available."
+      },
+      "Answers": {
+        "type": "object",
+        "description": "Map of supported form field names and submitted values. Only fields for the selected step may be sent.",
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "dateOfBirth": {
+            "type": "string"
+          },
+          "country": {
+            "type": "string"
+          },
+          "nationality": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          },
+          "phone": {
+            "type": "string"
+          },
+          "consentConfirmed": {
+            "type": "boolean"
+          },
+          "documentType": {
+            "type": "string"
+          },
+          "documentNumber": {
+            "type": "string"
+          },
+          "documentCountry": {
+            "type": "string"
+          },
+          "expiry": {
+            "type": "string"
+          },
+          "street": {
+            "type": "string"
+          },
+          "city": {
+            "type": "string"
+          },
+          "postal": {
+            "type": "string"
+          },
+          "residentialCountry": {
+            "type": "string"
+          }
+        }
+      },
+      "Step": {
+        "type": "string",
+        "enum": ["personal-details", "identity-and-address"]
+      },
+      "StepProgress": {
+        "type": "object",
+        "required": ["step", "state"],
+        "properties": {
+          "step": {
+            "$ref": "#/components/schemas/Step"
+          },
+          "state": {
+            "type": "string",
+            "enum": ["current", "complete", "remaining"]
+          }
+        }
+      },
+      "DocumentEvidenceSummary": {
+        "type": "object",
+        "required": ["present"],
+        "properties": {
+          "present": {
+            "type": "boolean",
+            "description": "True when an accepted JPG or PNG identity document image is stored."
+          }
+        }
+      },
+      "ReviewDocument": {
+        "type": "object",
+        "required": ["data"],
+        "properties": {
+          "data": {
+            "type": "object",
+            "required": ["type", "id", "attributes"],
+            "properties": {
+              "type": {
+                "type": "string",
+                "const": "applicant-application-reviews"
+              },
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "attributes": {
+                "type": "object",
+                "required": ["ready", "missingRequiredFields"],
+                "properties": {
+                  "ready": {
+                    "type": "boolean",
+                    "description": "True when all required answers and document evidence are present for submission."
+                  },
+                  "missingRequiredFields": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "required": ["step", "field"],
+                      "properties": {
+                        "step": {
+                          "$ref": "#/components/schemas/Step"
+                        },
+                        "field": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    "description": "Missing required field names grouped by application step. Empty when ready is true."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "description": "JSON:API response describing submission readiness and missing required fields."
+      },
+      "DocumentEvidenceDocument": {
+        "type": "object",
+        "required": ["data"],
+        "properties": {
+          "data": {
+            "type": "object",
+            "required": ["type", "id", "attributes"],
+            "properties": {
+              "type": {
+                "type": "string",
+                "const": "applicant-application-document-evidence"
+              },
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "attributes": {
+                "$ref": "#/components/schemas/DocumentEvidenceSummary"
+              }
+            }
+          }
+        },
+        "description": "JSON:API response confirming whether identity document evidence is stored for the application."
+      },
+      "ApplicationDocument": {
+        "type": "object",
+        "required": ["data"],
+        "properties": {
+          "data": {
+            "type": "object",
+            "required": ["type", "id", "attributes"],
+            "properties": {
+              "type": {
+                "type": "string",
+                "const": "applicant-applications"
+              },
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "attributes": {
+                "type": "object",
+                "required": ["status"],
+                "properties": {
+                  "status": {
+                    "type": "string",
+                    "enum": ["draft", "submitted"],
+                    "description": "Current lifecycle status. A submitted application also includes submittedAt and receipt."
+                  },
+                  "submittedAt": {
+                    "type": "string",
+                    "format": "date-time",
+                    "description": "Present only after successful submission."
+                  },
+                  "receipt": {
+                    "type": "object",
+                    "description": "Generic, non-sensitive next-step text; contains no review timeframe.",
+                    "required": ["message", "nextStep"],
+                    "properties": {
+                      "message": {
+                        "type": "string",
+                        "const": "Your application was received"
+                      },
+                      "nextStep": {
+                        "type": "string",
+                        "const": "The review team will review your application."
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "description": "JSON:API response describing application lifecycle state and, after submission, its receipt."
+      },
+      "SubmissionRequestDocument": {
+        "type": "object",
+        "required": ["data"],
+        "properties": {
+          "data": {
+            "type": "object",
+            "required": ["type", "id", "attributes"],
+            "properties": {
+              "type": {
+                "type": "string",
+                "const": "applicant-applications"
+              },
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "attributes": {
+                "type": "object",
+                "required": ["status", "confirmed", "expectedFormVersion"],
+                "properties": {
+                  "status": {
+                    "type": "string",
+                    "const": "submitted"
+                  },
+                  "confirmed": {
+                    "type": "boolean",
+                    "const": true
+                  },
+                  "expectedFormVersion": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "description": "Version returned by the latest form response. Prevents submission against stale form data."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "description": "JSON:API request document for explicit application submission."
+      },
+      "ReviewerApplicationsDocument": {
+        "type": "object",
+        "required": ["data", "meta"],
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReviewerApplicationResource"
+            }
+          },
+          "meta": {
+            "type": "object",
+            "required": ["summary", "pagination"],
+            "properties": {
+              "summary": {
+                "type": "object",
+                "required": [
+                  "pendingReview",
+                  "inProgress",
+                  "approvedThisMonth"
+                ],
+                "properties": {
+                  "pendingReview": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "inProgress": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "approvedThisMonth": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "monthStart": {
+                    "type": "string",
+                    "format": "date-time",
+                    "description": "UTC start of current calendar month"
+                  },
+                  "monthEndExclusive": {
+                    "type": "string",
+                    "format": "date-time",
+                    "description": "UTC start of next calendar month"
+                  },
+                  "timeZone": {
+                    "type": "string",
+                    "const": "UTC"
+                  }
+                },
+                "description": "Counts for pending review, in-progress applications, and approvals in the current UTC month."
+              },
+              "pagination": {
+                "type": "object",
+                "required": ["page", "pageSize", "totalItems", "totalPages"],
+                "properties": {
+                  "page": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "pageSize": {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  "totalItems": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "totalPages": {
+                    "type": "integer",
+                    "minimum": 0
+                  }
+                },
+                "description": "Zero-based page details for this response."
+              }
+            },
+            "description": "Aggregate workload counts and pagination details for the returned data page."
+          }
+        },
+        "description": "JSON:API response containing a reviewer workload summary, one application page, and pagination metadata."
+      },
+      "ReviewerApplicationResource": {
+        "type": "object",
+        "required": ["type", "id", "attributes"],
+        "properties": {
+          "type": {
+            "const": "reviewer-applications"
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "attributes": {
+            "type": "object",
+            "required": ["applicantName", "status"],
+            "properties": {
+              "applicantName": {
+                "type": "string"
+              },
+              "submittedAt": {
+                "type": ["string", "null"],
+                "format": "date-time",
+                "description": "Submission time in UTC; null when the application has not been submitted."
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "draft",
+                  "submitted",
+                  "in-review",
+                  "approved",
+                  "rejected"
+                ]
+              }
+            }
+          }
+        },
+        "description": "Minimized reviewer list resource. It contains applicant name and lifecycle status, not form answers or document data."
+      }
+    },
+    "responses": {
+      "CredentialInputInvalid": {
+        "description": "The credential document is malformed or contains invalid fields. The errors array can contain multiple field errors; source.pointer identifies each invalid JSON:API member.",
+        "content": {
+          "application/vnd.api+json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorDocument"
+            },
+            "examples": {
+              "malformedDocument": {
+                "summary": "Malformed JSON:API document",
+                "value": {
+                  "errors": [
+                    {
+                      "status": "400",
+                      "code": "malformed-document",
+                      "title": "Malformed JSON:API document",
+                      "detail": "The request body is not a valid JSON:API document."
+                    }
+                  ]
+                }
+              },
+              "invalidFields": {
+                "summary": "Credential field validation errors",
+                "value": {
+                  "errors": [
+                    {
+                      "status": "400",
+                      "code": "validation-failed",
+                      "title": "Invalid attribute",
+                      "detail": "Enter a valid email address.",
+                      "source": {
+                        "pointer": "/data/attributes/email"
+                      }
+                    },
+                    {
+                      "status": "400",
+                      "code": "validation-failed",
+                      "title": "Invalid attribute",
+                      "detail": "Use at least 6 characters including an uppercase letter and special character.",
+                      "source": {
+                        "pointer": "/data/attributes/password"
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      },
+      "AccountConflict": {
+        "description": "An account already exists for the submitted email address. The response does not include account details.",
+        "content": {
+          "application/vnd.api+json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorDocument"
+            },
+            "examples": {
+              "emailAlreadyRegistered": {
+                "summary": "Email address already registered",
+                "value": {
+                  "errors": [
+                    {
+                      "status": "409",
+                      "code": "email-already-registered",
+                      "title": "Account conflict",
+                      "detail": "An account already exists for this email address."
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      },
+      "InvalidCredentials": {
+        "description": "The email address or password is invalid. This response is the same for unknown email addresses and incorrect passwords.",
+        "content": {
+          "application/vnd.api+json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorDocument"
+            },
+            "examples": {
+              "invalidCredentials": {
+                "summary": "Credentials rejected",
+                "value": {
+                  "errors": [
+                    {
+                      "status": "401",
+                      "code": "invalid-credentials",
+                      "title": "Authentication failed",
+                      "detail": "Invalid email or password"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      },
+      "AuthenticationRequired": {
+        "description": "No active Applicant session is available. Sign in and send the session cookie.",
+        "content": {
+          "application/vnd.api+json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorDocument"
+            },
+            "examples": {
+              "authenticationRequired": {
+                "summary": "Session required",
+                "value": {
+                  "errors": [
+                    {
+                      "status": "401",
+                      "code": "authentication-required",
+                      "title": "Authentication required",
+                      "detail": "Sign in to continue."
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      },
+      "AccessDenied": {
+        "description": "The request is not authorized for this resource or is missing a valid CSRF token. The response does not disclose protected resource details.",
+        "content": {
+          "application/vnd.api+json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorDocument"
+            },
+            "examples": {
+              "accessDenied": {
+                "summary": "Access denied",
+                "value": {
+                  "errors": [
+                    {
+                      "status": "403",
+                      "code": "access-denied",
+                      "title": "Access denied",
+                      "detail": "You do not have permission to access this resource."
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      },
+      "RateLimited": {
+        "description": "Too many registration or sign-in attempts were received. Retry after the number of seconds in the Retry-After header.",
+        "content": {
+          "application/vnd.api+json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorDocument"
+            },
+            "examples": {
+              "rateLimited": {
+                "summary": "Request rate limit reached",
+                "value": {
+                  "errors": [
+                    {
+                      "status": "429",
+                      "code": "rate-limited",
+                      "title": "Too many requests",
+                      "detail": "Too many attempts. Try again later."
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "headers": {
+          "Retry-After": {
+            "description": "Seconds to wait before retrying; value is at least 1.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        }
+      },
+      "UnsupportedRequestMediaType": {
+        "description": "The request Content-Type is not accepted for this operation. JSON:API request bodies must use application/vnd.api+json. For document-evidence uploads, use multipart/form-data; image validation failures return 422.",
+        "content": {
+          "application/vnd.api+json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorDocument"
+            },
+            "examples": {
+              "unsupportedMediaType": {
+                "summary": "Unsupported request media type",
+                "value": {
+                  "errors": [
+                    {
+                      "status": "415",
+                      "code": "unsupported-media-type",
+                      "title": "Unsupported media type",
+                      "detail": "Use application/vnd.api+json for JSON:API request bodies."
+                    }
+                  ]
+                }
+              },
+              "mediaTypeParameters": {
+                "summary": "Unsupported JSON:API media type parameters",
+                "value": {
+                  "errors": [
+                    {
+                      "status": "415",
+                      "code": "unsupported-media-type",
+                      "title": "Unsupported media type",
+                      "detail": "Use application/vnd.api+json without media type parameters."
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      },
+      "UnsupportedEvidenceRequestMediaType": {
+        "description": "The upload request Content-Type does not match multipart/form-data. The current protocol handler returns the shared unsupported-media-type error shown here. Unsupported image type or size is reported separately as 422.",
+        "content": {
+          "application/vnd.api+json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorDocument"
+            },
+            "examples": {
+              "unsupportedMediaType": {
+                "summary": "Unsupported upload request media type",
+                "value": {
+                  "errors": [
+                    {
+                      "status": "415",
+                      "code": "unsupported-media-type",
+                      "title": "Unsupported media type",
+                      "detail": "Use application/vnd.api+json for JSON:API request bodies."
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      },
+      "NotAcceptable": {
+        "description": "The requested response representation is not supported. Accept application/vnd.api+json.",
+        "content": {
+          "application/vnd.api+json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorDocument"
+            },
+            "examples": {
+              "notAcceptable": {
+                "summary": "Unsupported response representation",
+                "value": {
+                  "errors": [
+                    {
+                      "status": "406",
+                      "code": "not-acceptable",
+                      "title": "Not acceptable",
+                      "detail": "Accept application/vnd.api+json for JSON:API responses."
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      },
+      "MalformedJsonApiDocument": {
+        "description": "The JSON request body could not be parsed as a JSON:API document.",
+        "content": {
+          "application/vnd.api+json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorDocument"
+            },
+            "examples": {
+              "malformedDocument": {
+                "summary": "Malformed JSON:API document",
+                "value": {
+                  "errors": [
+                    {
+                      "status": "400",
+                      "code": "malformed-document",
+                      "title": "Malformed JSON:API document",
+                      "detail": "The request body is not a valid JSON:API document."
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      },
+      "ReviewerQueryInvalid": {
+        "description": "One or more reviewer query parameters are invalid. Check search, status, page, and page-size values.",
+        "content": {
+          "application/vnd.api+json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorDocument"
+            },
+            "examples": {
+              "invalidQuery": {
+                "summary": "Invalid reviewer query",
+                "value": {
+                  "errors": [
+                    {
+                      "status": "400",
+                      "code": "invalid-query",
+                      "title": "Invalid query",
+                      "detail": "Check search, status, page, and page size."
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      },
+      "ApplicationNotFound": {
+        "description": "The application is absent or is not visible to the authenticated Applicant.",
+        "content": {
+          "application/vnd.api+json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorDocument"
+            },
+            "examples": {
+              "applicationNotFound": {
+                "summary": "Application not found",
+                "value": {
+                  "errors": [
+                    {
+                      "status": "404",
+                      "code": "application-not-found",
+                      "title": "Application not found",
+                      "detail": "The requested application is not available."
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      },
+      "FormVersionConflict": {
+        "description": "The form version changed or the application cannot be submitted in its current state. Reload the form before retrying.",
+        "content": {
+          "application/vnd.api+json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorDocument"
+            },
+            "examples": {
+              "formVersionConflict": {
+                "summary": "Form version or lifecycle conflict",
+                "value": {
+                  "errors": [
+                    {
+                      "status": "409",
+                      "code": "form-version-conflict",
+                      "title": "Form changed",
+                      "detail": "Reload the form and try again."
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      },
+      "FormUnprocessable": {
+        "description": "The submitted form data could not be accepted. The error detail gives the safe reason when one is available.",
+        "content": {
+          "application/vnd.api+json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorDocument"
+            },
+            "examples": {
+              "unprocessableForm": {
+                "summary": "Form data rejected",
+                "value": {
+                  "errors": [
+                    {
+                      "status": "422",
+                      "code": "unprocessable-form",
+                      "title": "Form could not be saved",
+                      "detail": "The submitted form could not be accepted."
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      },
+      "EvidenceInvalid": {
+        "description": "The file is empty, larger than 10 MiB, or is not a JPG or PNG image. The errors array contains a safe detail describing the rejected upload.",
+        "content": {
+          "application/vnd.api+json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorDocument"
+            },
+            "examples": {
+              "documentRequired": {
+                "summary": "No document supplied",
+                "value": {
+                  "errors": [
+                    {
+                      "status": "422",
+                      "code": "unprocessable-form",
+                      "title": "Form could not be saved",
+                      "detail": "A document is required."
+                    }
+                  ]
+                }
+              },
+              "unsupportedImage": {
+                "summary": "Unsupported image media type",
+                "value": {
+                  "errors": [
+                    {
+                      "status": "422",
+                      "code": "unprocessable-form",
+                      "title": "Form could not be saved",
+                      "detail": "Document media type is not accepted."
+                    }
+                  ]
+                }
+              },
+              "imageTooLarge": {
+                "summary": "Image exceeds size limit",
+                "value": {
+                  "errors": [
+                    {
+                      "status": "422",
+                      "code": "unprocessable-form",
+                      "title": "Form could not be saved",
+                      "detail": "Document size is not accepted."
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      },
+      "SubmissionUnprocessable": {
+        "description": "The submission request is invalid or the draft is incomplete. Incomplete applications include missing field names in the error detail.",
+        "content": {
+          "application/vnd.api+json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorDocument"
+            },
+            "examples": {
+              "invalidSubmission": {
+                "summary": "Submission request rejected",
+                "value": {
+                  "errors": [
+                    {
+                      "status": "422",
+                      "code": "unprocessable-form",
+                      "title": "Form could not be saved",
+                      "detail": "The submitted form could not be accepted."
+                    }
+                  ]
+                }
+              },
+              "missingRequiredFields": {
+                "summary": "Required fields missing",
+                "value": {
+                  "errors": [
+                    {
+                      "status": "422",
+                      "code": "required-fields-missing",
+                      "title": "Required fields are missing",
+                      "detail": "Complete the required fields before submitting: name, dateOfBirth."
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      },
+      "InternalError": {
+        "description": "The request could not be completed. The response omits internal exception and persistence details.",
+        "content": {
+          "application/vnd.api+json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorDocument"
+            },
+            "examples": {
+              "internalError": {
+                "summary": "Unexpected server error",
+                "value": {
+                  "errors": [
+                    {
+                      "status": "500",
+                      "code": "internal-error",
+                      "title": "Request failed",
+                      "detail": "The request could not be completed."
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      },
+      "ServiceUnavailable": {
+        "description": "The persistence operation failed. The response uses the safe fixed message shown below and omits database details.",
+        "content": {
+          "application/vnd.api+json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorDocument"
+            },
+            "examples": {
+              "submissionUnavailable": {
+                "summary": "Persistence unavailable",
+                "value": {
+                  "errors": [
+                    {
+                      "status": "503",
+                      "code": "submission-unavailable",
+                      "title": "Submission unavailable",
+                      "detail": "Your application was not submitted. Please retry later."
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "parameters": {
+      "ApplicationId": {
+        "name": "applicationId",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "description": "UUID of the application to read or update. The application must be visible to the authenticated Applicant."
+      }
+    },
+    "requestBodies": {}
+  }
+}

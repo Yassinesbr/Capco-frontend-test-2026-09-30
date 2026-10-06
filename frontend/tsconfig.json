@@ -1,0 +1,22 @@
+{"compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "jsx": "react-jsx",
+    "strict": true,
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "allowImportingTsExtensions": false,
+    "noEmit": true,
+    "rootDirs": [".", ".react-router/types"],
+    "paths": { "@kyc/ui": ["../DS/index.ts"] },
+    "types": ["@react-router/node", "node", "vite/client", "@testing-library/jest-dom/vitest"]
+  },
+  "include": [
+    "src/**/*.ts",
+    "src/**/*.tsx",
+    ".react-router/types/**/*",
+    "react-router.config.ts",
+    "vite.config.ts"
+  ]
+}

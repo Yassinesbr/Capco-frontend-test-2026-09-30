@@ -1,0 +1,16 @@
+spring:
+  datasource:
+    url: jdbc:sqlite:./data/identity-access.db
+    driver-class-name: org.sqlite.JDBC
+    hikari:
+      connection-init-sql: PRAGMA foreign_keys = ON
+  flyway:
+    locations: classpath:db/migration
+
+kyc:
+  security:
+    session:
+      idle-timeout: PT30M
+      absolute-timeout: PT8H
+      same-site: Strict
+      secure-cookies: true
