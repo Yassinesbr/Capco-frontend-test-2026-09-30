@@ -8,9 +8,15 @@ import {
   TextField,
   Typography,
 } from '@kyc/ui'
-import { useEffect, useRef, useState } from 'react'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useRef, useState } from 'react'
 
-import { accountAccessHref, isSafeJourneyPath } from './-return-target'
+import {
+  LoginError,
+  signInApplicant,
+  type LoginFieldErrors,
+} from './-login-api'
+import { accountAccessHref } from './-return-target'
 import styles from './account-access.module.css'
 
 export interface SignInFormProps {
@@ -27,36 +33,60 @@ export function SignInForm({
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string>()
-  const [emailError, setEmailError] = useState<string>()
-  const [passwordError, setPasswordError] = useState<string>()
+  const [fieldErrors, setFieldErrors] = useState<LoginFieldErrors>({})
+  const [signedIn, setSignedIn] = useState(false)
   const emailInput = useRef<HTMLInputElement>(null)
   const passwordInput = useRef<HTMLInputElement>(null)
+  const submitting = useRef(false)
+  const queryClient = useQueryClient()
+  const login = useMutation({
+    mutationFn: signInApplicant,
+    retry: false,
+    gcTime: 0,
+  })
 
-  useEffect(() => {
-    if (emailError) {
+  function showFieldErrors(errors: LoginFieldErrors) {
+    setFieldErrors(errors)
+    if (errors.email) {
       emailInput.current?.focus()
-    } else if (passwordError) {
+    } else if (errors.password) {
       passwordInput.current?.focus()
     }
-  }, [emailError, passwordError])
+  }
 
   async function submit(): Promise<void> {
+    if (submitting.current || signedIn) return
     setError(undefined)
-    setEmailError(undefined)
-    setPasswordError(undefined)
-
+    const errors: LoginFieldErrors = {}
+    if (!email.trim()) {
+      errors.email = 'Enter your email address.'
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+      errors.email = 'Enter a valid email address.'
+    }
+    if (!password) errors.password = 'Enter your password.'
+    showFieldErrors(errors)
+    if (Object.keys(errors).length) return
+    submitting.current = true
     try {
-      const destination = returnTo ?? '/applications/current'
-      if (!isSafeJourneyPath(destination)) {
-        throw new Error('The destination is invalid.')
-      }
+      const destination = await login.mutateAsync({
+        email: email.trim(),
+        password,
+      })
+      // A new session must not display data cached for a previous applicant.
+      queryClient.removeQueries()
+      setPassword('')
+      setSignedIn(true)
       onSuccess(destination)
     } catch (cause) {
       setError(
         cause instanceof Error
           ? cause.message
-          : 'Account access could not be completed.',
+          : 'Sign-in could not be confirmed. Please try again.',
       )
+      if (cause instanceof LoginError) showFieldErrors(cause.fields)
+    } finally {
+      login.reset()
+      submitting.current = false
     }
   }
 
@@ -71,6 +101,7 @@ export function SignInForm({
               event.preventDefault()
               void submit()
             }}
+            aria-busy={login.isPending}
             spacing={3}
           >
             <Stack spacing={1}>
@@ -81,52 +112,66 @@ export function SignInForm({
                 Sign in to continue your KYC application.
               </Typography>
             </Stack>
-            {(error ?? emailError ?? passwordError) ? (
+            {(error ?? fieldErrors.email ?? fieldErrors.password) ? (
               <Alert aria-live="assertive" role="alert" severity="error">
-                {error ?? emailError ?? passwordError}
+                {error ?? fieldErrors.email ?? fieldErrors.password}
               </Alert>
             ) : null}
             <TextField
               autoComplete="email"
-              error={Boolean(emailError)}
+              error={Boolean(fieldErrors.email)}
               fullWidth
-              helperText={emailError}
+              helperText={fieldErrors.email}
               id="applicant-email"
               inputRef={emailInput}
               label="Email address"
               name="email"
               onChange={(event) => {
                 setEmail(event.target.value)
-                setEmailError(undefined)
+                setFieldErrors((current) => ({ ...current, email: undefined }))
               }}
+              readOnly={login.isPending || signedIn}
               required
               type="email"
               value={email}
             />
             <TextField
               autoComplete="current-password"
-              error={Boolean(passwordError)}
+              error={Boolean(fieldErrors.password)}
               fullWidth
-              helperText={passwordError}
+              helperText={fieldErrors.password}
               id="applicant-password"
               inputRef={passwordInput}
               label="Password"
               name="password"
               onChange={(event) => {
                 setPassword(event.target.value)
-                setPasswordError(undefined)
+                setFieldErrors((current) => ({
+                  ...current,
+                  password: undefined,
+                }))
               }}
+              readOnly={login.isPending || signedIn}
               required
               type="password"
               value={password}
             />
+            {login.isPending ? (
+              <Alert role="status">Signing in...</Alert>
+            ) : null}
+            {signedIn ? (
+              <Alert role="status">
+                Signed in. Opening your application...
+              </Alert>
+            ) : null}
             <Button
+              disabled={login.isPending || signedIn}
               className={styles.submit}
               fullWidth
               size="large"
               type="submit"
             >
-              Sign in
+              {login.isPending ? 'Signing in...' : 'Sign in'}
             </Button>
             <Typography
               className={styles.footer}
