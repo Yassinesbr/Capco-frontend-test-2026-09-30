@@ -1,6 +1,7 @@
 import { useState } from 'react'
 
 import { Button } from './Button'
+import { ConfirmationDialog } from './ConfirmationDialog'
 import {
   Alert,
   Box,
@@ -28,6 +29,32 @@ const meta = {
 } satisfies Meta<typeof Button>
 export default meta
 type Story = StoryObj<typeof meta>
+
+export const ConfirmLeaving: Story = {
+  name: 'Confirmation dialog / unsaved changes',
+  render: () => <ConfirmationStory />,
+}
+
+function ConfirmationStory() {
+  const [open, setOpen] = useState(false)
+  return (
+    <>
+      <Button onPress={() => setOpen(true)}>Leave form</Button>
+      <ConfirmationDialog
+        isOpen={open}
+        title="Leave without saving?"
+        confirmLabel="Leave without saving"
+        cancelLabel="Stay and keep editing"
+        onCancel={() => setOpen(false)}
+        onConfirm={() => setOpen(false)}
+      >
+        <Typography>
+          Unsaved edits will be lost. Stay to save your work first.
+        </Typography>
+      </ConfirmationDialog>
+    </>
+  )
+}
 
 export const ButtonPrimary: Story = {
   name: 'Button / primary',

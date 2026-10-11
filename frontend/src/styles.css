@@ -7,6 +7,25 @@ body {
   margin: 0;
 }
 
+:focus-visible {
+  outline: 3px solid #164b91;
+  outline-offset: 3px;
+}
+
+.skip-link {
+  position: fixed;
+  top: 8px;
+  left: 8px;
+  transform: translateY(-200%);
+  z-index: 200;
+  padding: 12px 16px;
+  background: white;
+  color: #164b91;
+}
+.skip-link:focus {
+  transform: translateY(0);
+}
+
 .sr-only {
   height: 1px;
   margin: -1px;

@@ -1,5 +1,7 @@
 export { Button } from './Button'
 export type { ButtonProps } from './Button'
+export { ConfirmationDialog } from './ConfirmationDialog'
+export type { ConfirmationDialogProps } from './ConfirmationDialog'
 export { SelectField } from './SelectField'
 export type { SelectFieldOption, SelectFieldProps } from './SelectField'
 export {

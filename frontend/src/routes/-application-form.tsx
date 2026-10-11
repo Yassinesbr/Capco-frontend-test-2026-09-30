@@ -1,7 +1,8 @@
 import { Alert, Box, Button, Stack, TextField, Typography } from '@kyc/ui'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
+import { useUnsavedChanges } from './-unsaved-changes'
 import styles from './application-step.module.css'
 import {
   ApplicationApiError,
@@ -65,6 +66,21 @@ export function ApplicationForm({
   const fileInput = useRef<HTMLInputElement>(null)
   const client = useQueryClient()
   const id = initialForm.id
+  const { setDirty } = useUnsavedChanges()
+  const [savedAnswers, setSavedAnswers] = useState(
+    initialForm.attributes.answers,
+  )
+  const answerDirty =
+    fields[step].some(
+      ([key]) => (answers[key] ?? '') !== (savedAnswers[key] ?? ''),
+    ) ||
+    (step === 'personal-details' &&
+      (answers.consentConfirmed === true) !==
+        (savedAnswers.consentConfirmed === true))
+  useEffect(() => {
+    setDirty(answerDirty || Boolean(file))
+  }, [answerDirty, file, setDirty])
+  useEffect(() => () => setDirty(false), [setDirty])
   const operation = useMutation({
     retry: false,
     mutationFn: async (action: Action) => {
@@ -90,6 +106,7 @@ export function ApplicationForm({
       void client.invalidateQueries({ queryKey: currentDraftKey })
       setVersion(form.attributes.version)
       setEvidencePresent(form.attributes.documentEvidence.present)
+      setSavedAnswers(form.attributes.answers)
       if (action.kind === 'reload') {
         setNotice(
           'Latest saved version loaded. Your entered answers are unchanged. Saving again will replace this step with your answers.',
@@ -100,6 +117,7 @@ export function ApplicationForm({
         setNotice('Document evidence saved. Save your answers separately.')
       } else {
         setAnswers({ ...form.attributes.answers })
+        setDirty(Boolean(file))
         setSaved(true)
         if (action.advance)
           onNavigate(
@@ -136,7 +154,9 @@ export function ApplicationForm({
           </Typography>
           <Typography tone="muted">
             Save your answers at any time, including an incomplete form. Saved
-            answers will be available when you return.
+            answers will be available when you return. Fields marked required
+            are needed to complete the application, but do not prevent saving a
+            draft.
           </Typography>
           <Stack
             component="form"
@@ -193,6 +213,7 @@ export function ApplicationForm({
                 <input
                   ref={fileInput}
                   id="document-evidence"
+                  aria-describedby="document-evidence-help"
                   type="file"
                   accept="image/jpeg,image/png"
                   disabled={operation.isPending}
@@ -202,6 +223,10 @@ export function ApplicationForm({
                     operation.reset()
                   }}
                 />
+                <Typography id="document-evidence-help">
+                  Choose a JPG or PNG up to 10 MiB, then activate Upload
+                  document. Saving answers does not upload this file.
+                </Typography>
                 {file ? (
                   <Typography>
                     Selected file has not been uploaded yet.

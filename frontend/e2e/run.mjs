@@ -35,11 +35,11 @@ const playwrightCli = resolve(
   'cli.js',
 )
 
-process.env.PLAYWRIGHT_BROWSERS_PATH ??= resolve(
-  homedir(),
-  '.codex-tools',
-  'playwright-browsers',
-)
+// process.env.PLAYWRIGHT_BROWSERS_PATH ??= resolve(
+//   homedir(),
+//   '.codex-tools',
+//   'playwright-browsers',
+// )
 
 function resolveJavaHome() {
   if (
@@ -328,6 +328,7 @@ async function main() {
         SERVER_PORT: String(backendPort),
         KYC_BACKEND_URL: `http://127.0.0.1:${backendPort}`,
         SPRING_DATASOURCE_URL: `jdbc:sqlite:./target/e2e/${e2eDatabaseName}`,
+        KYC_DOCUMENT_STORAGE_ROOT: './target/e2e/documents',
         SPRING_MAIN_BANNER_MODE: 'off',
       },
     },

@@ -1,19 +1,13 @@
-import { Link, useLoaderData } from 'react-router'
+import { Alert } from '@kyc/ui'
+import { lazy, Suspense } from 'react'
+import { Link } from 'react-router'
 
-import type { default as SwaggerUIComponent } from 'swagger-ui-react'
 import 'swagger-ui-react/swagger-ui.css'
 import './api-docs.css'
 
-export async function clientLoader() {
-  const { default: SwaggerUI } = await import('swagger-ui-react')
-  return { SwaggerUI }
-}
+const SwaggerUI = lazy(() => import('swagger-ui-react'))
 
 export default function ApiDocumentationRoute() {
-  const { SwaggerUI } = useLoaderData<typeof clientLoader>() as {
-    SwaggerUI: typeof SwaggerUIComponent
-  }
-
   return (
     <main className="api-docs">
       <header className="api-docs__header">
@@ -23,12 +17,16 @@ export default function ApiDocumentationRoute() {
         <a href="/openapi.json">OpenAPI JSON</a>
       </header>
       <div className="api-docs__swagger">
-        <SwaggerUI
-          url="/openapi.json"
-          docExpansion="list"
-          displayOperationId
-          supportedSubmitMethods={[]}
-        />
+        <Suspense
+          fallback={<Alert role="status">Loading API documentation...</Alert>}
+        >
+          <SwaggerUI
+            url="/openapi.json"
+            docExpansion="list"
+            displayOperationId
+            supportedSubmitMethods={[]}
+          />
+        </Suspense>
       </div>
     </main>
   )

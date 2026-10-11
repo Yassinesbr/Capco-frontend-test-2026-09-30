@@ -11,6 +11,7 @@ import {
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useRef, useState } from 'react'
 
+import { ErrorSummary } from './-error-summary'
 import {
   LoginError,
   signInApplicant,
@@ -112,11 +113,23 @@ export function SignInForm({
                 Sign in to continue your KYC application.
               </Typography>
             </Stack>
-            {(error ?? fieldErrors.email ?? fieldErrors.password) ? (
-              <Alert aria-live="assertive" role="alert" severity="error">
-                {error ?? fieldErrors.email ?? fieldErrors.password}
-              </Alert>
-            ) : null}
+            <ErrorSummary
+              message={error}
+              fields={[
+                {
+                  id: 'applicant-email',
+                  label: 'Email address',
+                  error: fieldErrors.email,
+                  ref: emailInput,
+                },
+                {
+                  id: 'applicant-password',
+                  label: 'Password',
+                  error: fieldErrors.password,
+                  ref: passwordInput,
+                },
+              ]}
+            />
             <TextField
               autoComplete="email"
               error={Boolean(fieldErrors.email)}

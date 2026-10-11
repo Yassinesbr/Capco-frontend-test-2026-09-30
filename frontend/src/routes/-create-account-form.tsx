@@ -11,6 +11,7 @@ import {
 import { useMutation } from '@tanstack/react-query'
 import { useRef, useState } from 'react'
 
+import { ErrorSummary } from './-error-summary'
 import {
   passwordGuidance,
   registerApplicant,
@@ -104,17 +105,29 @@ export function CreateAccountForm({
                 Create credentials to begin your KYC application.
               </Typography>
             </Stack>
-            {(error ??
-            fieldErrors.email ??
-            fieldErrors.password ??
-            fieldErrors.confirmation) ? (
-              <Alert aria-live="assertive" role="alert" severity="error">
-                {error ??
-                  fieldErrors.email ??
-                  fieldErrors.password ??
-                  fieldErrors.confirmation}
-              </Alert>
-            ) : null}
+            <ErrorSummary
+              message={error}
+              fields={[
+                {
+                  id: 'applicant-email',
+                  label: 'Email address',
+                  error: fieldErrors.email,
+                  ref: emailInput,
+                },
+                {
+                  id: 'applicant-password',
+                  label: 'Password',
+                  error: fieldErrors.password,
+                  ref: passwordInput,
+                },
+                {
+                  id: 'applicant-password-confirmation',
+                  label: 'Confirm password',
+                  error: fieldErrors.confirmation,
+                  ref: confirmationInput,
+                },
+              ]}
+            />
             {success ? (
               <Alert aria-live="polite" role="status" severity="success">
                 Your account has been created. Sign in to begin your

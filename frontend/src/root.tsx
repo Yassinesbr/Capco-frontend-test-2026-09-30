@@ -9,7 +9,10 @@ import {
   ScrollRestoration,
   useRouteError,
 } from 'react-router'
+
 import './styles.css'
+import { RouteFocus } from './routes/-route-focus'
+import { UnsavedChangesProvider } from './routes/-unsaved-changes'
 
 export function Layout({ children }: { children: ReactNode }) {
   return (
@@ -35,7 +38,25 @@ export default function App() {
   )
   return (
     <QueryClientProvider client={queryClient}>
-      <Outlet />
+      <UnsavedChangesProvider>
+        <a
+          className="skip-link"
+          href="#main-content"
+          onClick={(event) => {
+            event.preventDefault()
+            const main = document.querySelector('main')
+            if (main) {
+              main.id = 'main-content'
+              main.tabIndex = -1
+              main.focus()
+            }
+          }}
+        >
+          Skip to main content
+        </a>
+        <RouteFocus />
+        <Outlet />
+      </UnsavedChangesProvider>
     </QueryClientProvider>
   )
 }
